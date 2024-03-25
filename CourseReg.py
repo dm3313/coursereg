@@ -21,11 +21,12 @@ class Student:
     # Constructor for student class
     # Takes in the name of the student
     # Every student has no courses enrolled or completed at first, so this must be filled later
-    def __init__(self, studentName, major):
+    def __init__(self, studentName, major, total_credits):
         self.studentName = studentName
         self.studentCourses = set()
         self.studentComplete = set()
         self.major = major
+        self.total_credits = total_credits
         
     # Method for checking if a student has registered already
     def inCourse(self, courseObject):
@@ -80,7 +81,7 @@ class Student:
 # Course class
 class Course:
     # Initialized with the name of the course, seats available, and any prerequisites
-    def __init__(self, name, seatAvail, prereq):
+    def __init__(self, name, seatAvail, prereq, start, end):
         self.name = name
         self.seatAvail = seatAvail
         # We also want a set of the students in the course
@@ -88,6 +89,8 @@ class Course:
         # and must be added to
         self.studentSet = set()
         self.prereq = prereq
+        self.start = start
+        self.end = end
         
     # Method for determining if a student has completed the prereqs
     def goForward(self, student):
@@ -104,8 +107,16 @@ class Course:
         # Return go forward
         return(goForward)
     
+    # Method for determining if a students classes overlap with the student's class.
+    def doCoursesOverlap(self, student):
+        for course in student.studentCourses:
+            if (self.start >= course.start and self.start < course.end) or (self.end > course.start and self.end <= course.end):
+                return True
+            else:
+                return False
+    
     # Method for adding a student to a course
-    def addCourse(self, student):
+    def addCourse(self, student, type_course):
         # If student is already in the course
         if student.inCourse(self):
             # Print that
@@ -118,6 +129,17 @@ class Course:
         elif self in student.studentComplete:
             # Print that
             print("You've taken this class already. Please try again")
+        # If the courses overlap
+        elif self.doCoursesOverlap(student):
+            # Print that
+            print("This class overlaps with one of yours. Please try again")
+        # If credits exceeded
+        elif (type_course == "major" and student.total_credits > 12):
+            # Print that
+            print("You cannot exceed 16 credits. Please try again")
+        elif (type_course == "elective" and student.total_credits > 14):
+            # Print that
+            print("You cannot exceed 16 credits. Please try again")
         else:
             # Run go forward method for the given student
             # If true, run the below commands
@@ -128,6 +150,11 @@ class Course:
                 self.seatAvail -= 1
                 # Add this course to the student's courses
                 student.addToStudentCourses(self)
+                # Update credits
+                if type_course == "major":
+                    student.total_credits += 4
+                else:
+                    student.total_credits += 2
                 # Print a success message
                 print("Success!")
             # Else, throw error--the student needs to take the prereq
@@ -171,32 +198,50 @@ class Major:
 
 class EEMajor(Major):
     def __init__(self):
-        self.EEmajorCourses = ['EECE2140']
+        self.EEmajorCourses = ['EECE2140','EECE2150','EECE2160']
+        self.EEelectives = ['EECE3140']
     
     def EECheck(self, course):
         check = False
-        if course.name in self.EEmajorCourses:
+        if course.name in self.EEmajorCourses or course.name in self.EEelectives:
             check = True
         return(check)
     
+    def isMajor(self, course):
+        if course.name in self.EEmajorCourses:
+            return True
+        else:
+           return False
+    
     def EEregister(self, course, student):
-        if self.EECheck(course):
-            course.addCourse(student)
+        if self.EECheck(course) and self.isMajor(course):
+            course.addCourse(student, "major")
+        elif self.EECheck(course) and (not self.isMajor(course)):
+            course.addCourse(student, "elective")
         else: print("Error: this course is not in your major.")
         
 class CSMajor(Major):
     def __init__(self):
-        self.CSmajorCourses = ['CS1242']
+        self.CSmajorCourses = ['CS1242','CS1243','CS1244','CS1245','CS1246']
+        self.CSElectives = ['CS2242','EECE2140']
         
     def CSCheck(self, course):
         check = False
-        if course.name in self.CSmajorCourses:
+        if course.name in self.CSmajorCourses or course.name in self.CSElectives:
             check = True
         return(check)
     
+    def isMajor(self, course):
+        if course.name in self.CSmajorCourses:
+            return True
+        else:
+           return False
+    
     def CSregister(self, course, student):
-        if self.CSCheck(course):
-            course.addCourse(student)
+        if self.CSCheck(course) and self.isMajor(course):
+            course.addCourse(student, "major")
+        elif self.CSCheck(course) and (not self.isMajor(course)):
+            course.addCourse(student, "elective")
         else: print("Error: this course is not in your major.")
         
 class EECSMajor(EEMajor,CSMajor):
@@ -214,67 +259,103 @@ class EECSMajor(EEMajor,CSMajor):
 
 
 def main():
-    # Info
-    # This is how you would use this program when there was a user interface
-    courseFormatted = """
-    Welcome to registration! Here are the courses offered for this semester:
-        MATH1241: Calculus 1
-        MATH1242: Calculus 2
-        ENG1111: First Year Writing
-        PHYS1151: Physics 1
-        
-    To register, type the name of the course with no spaces!
-    EXAMPLE: MATH1241
-    --> To complete registration, type "Done"
-    --> To view your current registered courses, type "My Courses"
-    --> To view the students currently registered for a course, type "Students"
-    --> To drop a course, type "Drop"
-    --> To add a course you've already taken, type "Taken"
-    --> To view your already taken courses, type "Print Taken"
-    """
-    
-    
-    # Define course objects
+    # Define course 
+    CSmajorObj = CSMajor()
     EEmajorObj = EEMajor()
     EECSmajorObj = EECSMajor()
-    sampleStudent = Student('Devin',EEmajorObj)
-    math1120 = Course('MATH1120', 4, '')
-    math1241 = Course('MATH1241',6, 'MATH1120')
-    math1242 = Course('MATH1242',4,'MATH1241')
-    eece2140 = Course('EECE2140', 3, '')
-    phys1151 = Course('PHYS1151', 2, 'MATH1241')
-    cs1242 = Course('CS1242',4,'')
-    # Define list of courses -- will be used for iteration later
+    math1241 = Course('MATH1241',6, 'MATH1120', 2, 4)
+    math1242 = Course('MATH1242',4,'MATH1241', 4, 6)
+    eece2140 = Course('EECE2140', 3, '', 6, 8)
+    cs1242 = Course('CS1242',4,'', 10, 12)
+    cs1243 = Course('CS1243',4,'', 0, 2)
+    cs1244 = Course('CS1244',4,'', 2, 4)
+    cs1245 = Course('CS1245',4,'', 4,6)
+    cs1246 = Course('CS1246',4,'', 6,8)
+    cs2242 = Course('CS2242',4,'', 11,12)
     
     
     # Test 1
     print("Test 1:")
     print("An EE major registers for EECE2140")
     print("System Output:")
-    testStudent1 = Student('Devin',EEmajorObj)
+    testStudent1 = Student('Devin',EEmajorObj,0)
     EEmajorObj.EEregister(eece2140,testStudent1)
     current = testStudent1.printStudentCourses()
     print(current)
     print("")
     
+    #Test 2
     print("Test 2:")
-    print("An EECS major registers for CS2142")
+    print("An EECS major registers for CS1242")
     print("System Output:")
-    testStudent1 = Student('Devin',EECSmajorObj)
+    testStudent1 = Student('Devin',EECSmajorObj,0)
     EECSmajorObj.register(cs1242,testStudent1)
     current = testStudent1.printStudentCourses()
     print(current)
     print("")
     
+    #Test 3
+    print("Test 3:")
+    print("A CS major registers for CS2242 (elective class)")
+    print("Elective classes are only 2 credits in our system")
+    print("System Output:")
+    testStudent2 = Student('Ashnu',CSmajorObj,0)
+    CSmajorObj.CSregister(cs2242,testStudent2)
+    current = testStudent2.printStudentCourses()
+    print(f"Your total credits are: {testStudent2.total_credits}")
+    print(current)
+    print("")
+    
+    #Test 4
+    print("Test 4:")
+    print("A CS major tries to register for CS1242 and CS2242 (overlap)")
+    print("System Output:")
+    testStudent3 = Student('Jon',CSmajorObj,0)
+    CSmajorObj.CSregister(cs1242,testStudent3)
+    CSmajorObj.CSregister(cs2242,testStudent3)
+    current = testStudent3.printStudentCourses()
+    print(current)
+    print("")
     
     # Test 5
     print("Test 5:")
     print("Student tries to register for MATH1242 without having taken MATH1241")
     print("System Output:")
-    testStudent5 = Student('Devin',EEmajorObj)
+    testStudent5 = Student('Devin',EEmajorObj,0)
     # Using math1241 and math1242
-    math1242.addCourse(testStudent5)
+    math1242.addCourse(testStudent5, "major")
+    print("")
     
+    # Test 6
+    print("Test 6:")
+    print("Student tries to register for too many credits (over 16)")
+    print("System Output:")
+    testStudent6 = Student('Devin',CSmajorObj,0)
+    CSmajorObj.CSregister(cs1242,testStudent6)
+    CSmajorObj.CSregister(cs1243,testStudent6)
+    CSmajorObj.CSregister(cs1244,testStudent6)
+    CSmajorObj.CSregister(cs1245,testStudent6)
+    CSmajorObj.CSregister(cs1246,testStudent6)
+    current = testStudent6.printStudentCourses()
+    print(current)
+    print("")
     
-    
+    print("Test 7")
+    print("Two students register for EECE2140. For one, it is elective.")
+    print("For the other, it is a major course.")
+    testStudent7 = Student('Ashnu', EEmajorObj,0)
+    testStudent8 = Student('Ben',CSmajorObj,0)
+    print("System Output: EECE2140 for an EE Major (MAJOR class)")
+    EEmajorObj.EEregister(eece2140,testStudent7)
+    current = testStudent7.printStudentCourses()
+    print(current)
+    print(f"Your total credits are: {testStudent7.total_credits}")
+    print("System Output: EECE2140 for a CS Major (ELECTIVE class)")
+    CSmajorObj.CSregister(eece2140,testStudent8)
+    current2 = testStudent8.printStudentCourses()
+    print(current2)
+    print(f"Your total credits are: {testStudent8.total_credits}")
+
+
+
 main()
